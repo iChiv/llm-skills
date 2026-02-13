@@ -11,6 +11,8 @@ metadata:
 
 This skill manages skills installed under `~/.claude/skills/`.
 
+OpenCode (via oh-my-opencode) uses the Agent Skills format and this same directory layout, so the `~/.claude` path is expected even when you are not using Claude Code.
+
 It can:
 - List installed skills (name + description + license + files)
 - Track upstream source (repo/path) and show local vs upstream version
@@ -41,23 +43,30 @@ Use the helper script:
 
 `scripts/skill_manager.py`
 
-Run examples (Windows Git Bash or any shell):
+Run examples:
 
 ```bash
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" list
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" status
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" list
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" status
 
 # Install a skill from anthropics/skills (default)
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" install pdf
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" install pdf
 
 # Update one skill (backs up existing first)
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" update pdf
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" update pdf
 
 # Update all skills that have a known upstream
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" update --all
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" update --all
 
 # Remove a skill (moves to trash instead of deleting)
-python "/c/Users/happyelements/.claude/skills/skill-manager/scripts/skill_manager.py" remove pdf
+python "~/.claude/skills/skill-manager/scripts/skill_manager.py" remove pdf
+```
+
+Windows PowerShell:
+
+```powershell
+python "$env:USERPROFILE\.claude\skills\skill-manager\scripts\skill_manager.py" list
+python "$env:USERPROFILE\.claude\skills\skill-manager\scripts\skill_manager.py" status
 ```
 
 ## Source mapping
