@@ -26,7 +26,7 @@ import urllib.request
 import urllib.error
 
 
-DEFAULT_UPSTREAM_REPO = "anthropics/skills"
+DEFAULT_UPSTREAM_REPO = "iChiv/skills"
 
 
 def _utc_now_iso() -> str:

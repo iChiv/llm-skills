@@ -1,55 +1,40 @@
-# opencode-skill-manager (Agent Skill)
+# skills
 
-Skill to manage Agent Skills installed for OpenCode (via oh-my-opencode).
+My personal collection of Agent Skills, compatible with OpenCode, Claude Code, and DeepSeek TUI.
 
-OpenCode reuses the Agent Skills format and the default skills location:
+All skills live under `skills/` and follow the Agent Skills format — each is a folder with a `SKILL.md` plus optional `scripts/`, `references/`, or `assets/`.
 
-- `~/.claude/skills/`
+## Installation
 
-This repo is intended to be installed as a skill directory (OpenCode / oh-my-opencode discovery):
-
-- `~/.claude/skills/skill-manager/`
-  - `SKILL.md`
-  - `scripts/skill_manager.py`
-
-## What it does
-
-- List installed skills and their upstream source
-- Show status (local vs upstream) for:
-  - Agent Skills repos (commit SHA)
-  - Tool-based skills (e.g. yt-dlp: local `yt-dlp --version` vs GitHub `releases/latest`)
-- Install/update skills from GitHub (with backups)
-- Remove skills safely (move to trash)
-
-## Quick start
-
-Run via Python:
+Clone into `~/.claude/skills/`:
 
 ```bash
-python "~/.claude/skills/skill-manager/scripts/skill_manager.py" list
-python "~/.claude/skills/skill-manager/scripts/skill_manager.py" status
-python "~/.claude/skills/skill-manager/scripts/skill_manager.py" update --all
+git clone https://github.com/iChiv/skills.git ~/.claude/skills/
 ```
 
-Windows PowerShell:
+To manage installed skills (list, install, update, remove), use the included skill-manager:
 
-```powershell
-python "$env:USERPROFILE\.claude\skills\skill-manager\scripts\skill_manager.py" list
-python "$env:USERPROFILE\.claude\skills\skill-manager\scripts\skill_manager.py" status
-python "$env:USERPROFILE\.claude\skills\skill-manager\scripts\skill_manager.py" update --all
+```bash
+python ~/.claude/skills/skills/skill-manager/scripts/skill_manager.py list
+python ~/.claude/skills/skills/skill-manager/scripts/skill_manager.py status
+python ~/.claude/skills/skills/skill-manager/scripts/skill_manager.py update --all
 ```
 
-GitHub API access:
+## Available skills
 
-- Set `GITHUB_TOKEN` to avoid rate limits.
+| Skill | Description |
+|-------|-------------|
+| [skill-manager](skills/skill-manager/SKILL.md) | Manage installed Agent Skills — list, install, update, remove |
+
+## Adding a new skill
+
+1. Create a folder: `skills/<skill-name>/`
+2. Add `SKILL.md` with YAML frontmatter (`name`, `description`, `license`)
+3. Optionally add `scripts/`, `references/`, or `assets/`
+4. Commit and push — it's discoverable immediately
 
 ## Compatibility
 
-- Works in OpenCode via oh-my-opencode.
-- Uses the same `SKILL.md` format and `~/.claude/skills/` conventions as the upstream Agent Skills ecosystem.
-- Works in DeepSeek TUI: skills are auto-discovered from `~/.claude/skills/`; use `load_skill skill-manager` to activate.
-
-## Files
-
-- `SKILL.md`: skill metadata + usage
-- `scripts/skill_manager.py`: CLI implementation
+- **OpenCode** (via oh-my-opencode) — auto-discovers from `~/.claude/skills/`
+- **Claude Code** — uses the same Agent Skills format and directory layout
+- **DeepSeek TUI** — auto-discovers from `~/.claude/skills/`; use `load_skill <name>` to activate
