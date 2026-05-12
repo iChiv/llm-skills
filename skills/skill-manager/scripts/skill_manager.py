@@ -563,6 +563,20 @@ def cmd_status(args: argparse.Namespace) -> int:
         fm = _read_skill_frontmatter(d / "SKILL.md")
         name = fm.get("name") or d.name
         entry = reg.get("skills", {}).get(name, {})
+        # Auto-register tool tracking from frontmatter if not already set
+        if "tool" not in entry and fm.get("tool"):
+            tool_cmd = fm["tool"]
+            tool_args_list = fm.get("tool_args", "--version").split()
+            tool_up = fm.get("tool_upstream")
+            entry["tool"] = {
+                "command": tool_cmd,
+                "args": tool_args_list,
+            }
+            if tool_up:
+                entry["tool"]["upstream"] = tool_up
+            entry["tool_set_at"] = _utc_now_iso()
+            reg.setdefault("skills", {})[name] = entry
+            _save_registry(root, reg)
         tool = entry.get("tool") if isinstance(entry.get("tool"), dict) else None
         r = entry.get("repo")
         p = entry.get("path")

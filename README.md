@@ -25,6 +25,7 @@ python ~/.claude/skills/skills/skill-manager/scripts/skill_manager.py update --a
 | Skill | Description |
 |-------|-------------|
 | [skill-manager](skills/skill-manager/SKILL.md) | Manage installed Agent Skills — list, install, update, remove |
+| [video-downloader](skills/video-downloader/SKILL.md) | Download videos from YouTube, Bilibili, Vimeo, and 1000+ sites. Auto-detects Bilibili for BBDown. |
 
 ## Adding a new skill
 
