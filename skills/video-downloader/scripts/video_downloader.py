@@ -9,6 +9,8 @@ import sys
 import subprocess
 import shutil
 import re
+import json
+import tempfile
 from pathlib import Path
 
 
@@ -16,23 +18,18 @@ def get_desktop_path():
     """Get the user's Desktop path."""
     desktop = Path.home() / "Desktop"
     if not desktop.exists():
-        # Fallback to home directory if Desktop doesn't exist
         desktop = Path.home()
     return str(desktop)
 
 
 def get_bbdown_path():
     """Get the BBDown executable path."""
-    # Check in .claude/tools directory
     bbdown_path = Path.home() / '.claude' / 'tools' / 'BBDown' / 'BBDown.exe'
     if bbdown_path.exists():
         return str(bbdown_path)
-
-    # Check if BBDown is in PATH
     bbdown_in_path = shutil.which('BBDown.exe')
     if bbdown_in_path:
         return bbdown_in_path
-
     return None
 
 
@@ -47,33 +44,18 @@ def is_bilibili_url(url):
 
 
 def build_bbdown_command(url, output_dir=None, quality='best'):
-    """
-    Build BBDown command for Bilibili videos.
-
-    Args:
-        url: Video URL
-        output_dir: Output directory (defaults to Desktop)
-        quality: Video quality
-
-    Returns:
-        List of command arguments
-    """
+    """Build BBDown command for Bilibili videos."""
     bbdown_path = get_bbdown_path()
     if not bbdown_path:
         return None
 
     cmd = [bbdown_path]
-
-    # Add URL first
     cmd.append(url)
 
-    # Work directory
     if output_dir is None:
         output_dir = get_desktop_path()
     cmd.extend(['--work-dir', output_dir])
 
-    # Quality selection (BBDown uses -q for dfn-priority)
-    # Note: BBDown quality names are in Chinese
     quality_map = {
         'best': '8K 超高清, 1080P 高码率, HDR 视界',
         '1080': '1080P 高码率',
@@ -81,7 +63,6 @@ def build_bbdown_command(url, output_dir=None, quality='best'):
         '480': '480P 清晰',
         'worst': '360P 流畅'
     }
-
     q = quality_map.get(quality, '8K 超高清, 1080P 高码率, HDR 视界')
     cmd.extend(['-q', q])
 
@@ -92,35 +73,23 @@ def build_ytdlp_command(url, output_dir=None, quality='best', audio_only=False,
                         format=None, playlist=False, subtitles=False,
                         thumbnail=False, concurrent_fragments=None,
                         cookies_from_browser=None, live_from_start=False,
-                        rate_limit=None):
-    """
-    Build yt-dlp command with specified options.
-
-    Args:
-        url: Video URL
-        output_dir: Output directory (defaults to Desktop)
-        quality: Video quality ('best', '1080', '720', '480', 'worst')
-        audio_only: Download audio only
-        format: Preferred format ('mp4', 'webm', 'mkv', etc.)
-        playlist: Download entire playlist
-        subtitles: Download subtitles
-        thumbnail: Embed thumbnail
-        concurrent_fragments: Number of concurrent fragments (None=default, e.g. 4)
-        cookies_from_browser: Browser to extract cookies from ('chrome', 'firefox', 'edge', etc.)
-        live_from_start: Download livestream from the beginning
-        rate_limit: Download speed limit (e.g. '1M', '500K', None=unlimited)
-
-    Returns:
-        List of command arguments
-    """
+                        rate_limit=None, no_sponsor=False,
+                        split_chapters=False, info_only=False,
+                        list_formats=False, download_archive=None,
+                        batch_file=None, organize=False,
+                        recode=None, sub_translate=None):
+    """Build yt-dlp command with specified options."""
     cmd = ['yt-dlp']
 
-    # Output directory
     if output_dir is None:
         output_dir = get_desktop_path()
-    cmd.extend(['-o', os.path.join(output_dir, '%(title)s.%(ext)s')])
 
-    # Format selection
+    if organize:
+        template = os.path.join(output_dir, '%(extractor)s', '%(uploader)s', '%(title)s.%(ext)s')
+    else:
+        template = os.path.join(output_dir, '%(title)s.%(ext)s')
+    cmd.extend(['-o', template])
+
     if audio_only:
         cmd.extend(['-x', '--audio-format', 'mp3'])
     elif quality == 'best':
@@ -131,177 +100,222 @@ def build_ytdlp_command(url, output_dir=None, quality='best', audio_only=False,
     elif quality == 'worst':
         cmd.extend(['-f', 'worst'])
     else:
-        # Specific quality (e.g., '1080', '720')
         if format:
             cmd.extend(['-f', f'bestvideo[height<={quality}][ext={format}]+bestaudio/best'])
         else:
             cmd.extend(['-f', f'bestvideo[height<={quality}]+bestaudio/best'])
 
-    # Merge format
-    if not audio_only:
-        cmd.extend(['--merge-output-format', format if format else 'mp4'])
-
-    # Subtitles
-    if subtitles:
-        cmd.extend(['--sub-langs', 'all', '--write-subs', '--write-auto-subs'])
-
-    # Thumbnail
-    if thumbnail:
-        cmd.append('--embed-thumbnail')
-
-    # Playlist handling
     if not playlist:
         cmd.append('--no-playlist')
 
-    # Concurrent fragments for faster downloads
+    if subtitles:
+        cmd.extend(['--write-subs', '--write-auto-subs', '--embed-subs'])
+    if sub_translate:
+        cmd.extend(['--sub-langs', f'{sub_translate}.*', '--write-subs', '--write-auto-subs'])
+        if subtitles:
+            cmd.append('--embed-subs')
+
+    if thumbnail:
+        cmd.extend(['--embed-thumbnail'])
+
+    if no_sponsor:
+        cmd.extend(['--sponsorblock-mark', 'all'])
+
+    if split_chapters:
+        cmd.extend(['--split-chapters'])
+
+    if info_only:
+        cmd.extend(['--dump-json'])
+    if list_formats:
+        cmd.extend(['--list-formats'])
+
+    if download_archive:
+        cmd.extend(['--download-archive', download_archive])
+
+    if batch_file:
+        cmd.extend(['--batch-file', batch_file])
+
+    if recode:
+        cmd.extend(['--recode-video', recode])
+
     if concurrent_fragments:
         cmd.extend(['--concurrent-fragments', str(concurrent_fragments)])
-
-    # Cookies from browser (convenient authentication)
     if cookies_from_browser:
         cmd.extend(['--cookies-from-browser', cookies_from_browser])
-
-    # Live stream from start
     if live_from_start:
-        cmd.append('--live-from-start')
-
-    # Rate limit
+        cmd.extend(['--live-from-start'])
     if rate_limit:
         cmd.extend(['--limit-rate', rate_limit])
 
-    # Add URL
+    cmd.append('--no-progress')
     cmd.append(url)
-
     return cmd
 
 
-def download_with_bbdown(url, output_dir=None, quality='best'):
-    """
-    Download a Bilibili video using BBDown.
+def _find_downloaded_file(output_dir, base_stem):
+    """Find the downloaded video file by matching stem."""
+    for ext in ('.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.opus', '.flv'):
+        p = Path(output_dir) / (base_stem + ext)
+        if p.exists():
+            return p
+    return None
 
-    Args:
-        url: Video URL
-        output_dir: Output directory (defaults to Desktop)
-        quality: Video quality
 
-    Returns:
-        Tuple of (success: bool, message: str, output_path: str or None)
-    """
-    bbdown_path = get_bbdown_path()
-    if not bbdown_path:
-        return False, "BBDown not found. Please install BBDown first.", None
+def extract_gif(video_path, start=0, duration=5, fps=10, width=480):
+    """Extract a GIF from a video file using ffmpeg."""
+    output = Path(video_path).with_suffix('.gif')
+    palette = tempfile.mktemp(suffix='.png')
 
-    cmd = build_bbdown_command(url, output_dir, quality)
-    if not cmd:
-        return False, "Failed to build BBDown command", None
+    cmd_palette = [
+        'ffmpeg', '-y', '-ss', str(start), '-t', str(duration),
+        '-i', str(video_path),
+        '-vf', f'fps={fps},scale={width}:-1:flags=lanczos,palettegen',
+        str(palette)
+    ]
+    subprocess.run(cmd_palette, capture_output=True)
 
-    try:
-        print(f"Downloading Bilibili video with BBDown...")
-        print(f"Output directory: {output_dir or get_desktop_path()}")
-        print(f"Quality: {quality}")
-        print("-" * 60)
+    cmd_gif = [
+        'ffmpeg', '-y', '-ss', str(start), '-t', str(duration),
+        '-i', str(video_path), '-i', str(palette),
+        '-lavfi', f'fps={fps},scale={width}:-1:flags=lanczos [x]; [x][1:v] paletteuse',
+        str(output)
+    ]
+    result = subprocess.run(cmd_gif, capture_output=True)
 
-        result = subprocess.run(
-            cmd,
-            capture_output=False,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
-        )
+    if Path(palette).exists():
+        Path(palette).unlink()
 
-        if result.returncode == 0:
-            return True, "Bilibili video downloaded successfully!", None
-        else:
-            return False, f"BBDownload failed with exit code {result.returncode}", None
+    if result.returncode == 0 and output.exists():
+        return str(output)
+    return None
 
-    except KeyboardInterrupt:
-        return False, "Download interrupted by user", None
-    except Exception as e:
-        return False, f"Error: {str(e)}", None
+
+def extract_frames(video_path, output_dir, interval=1.0):
+    """Extract frames from a video at regular intervals."""
+    stem = Path(video_path).stem
+    pattern = os.path.join(output_dir, f'{stem}_frame_%04d.png')
+    cmd = [
+        'ffmpeg', '-y', '-i', str(video_path),
+        '-vf', f'fps=1/{interval}',
+        str(pattern)
+    ]
+    subprocess.run(cmd, capture_output=True)
+
+    frames = sorted(Path(output_dir).glob(f'{stem}_frame_*.png'))
+    return [str(f) for f in frames]
+
+
+def _parse_ytdlp_json_output(stdout):
+    """Parse JSON lines from yt-dlp --dump-json output."""
+    results = []
+    for line in stdout.strip().splitlines():
+        try:
+            results.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return results
 
 
 def download_video(url, output_dir=None, quality='best', audio_only=False,
                    format=None, playlist=False, subtitles=False,
                    thumbnail=False, use_bbdown=None,
                    concurrent_fragments=None, cookies_from_browser=None,
-                   live_from_start=False, rate_limit=None):
+                   live_from_start=False, rate_limit=None,
+                   no_sponsor=False, split_chapters=False,
+                   info_only=False, list_formats=False,
+                   download_archive=None, batch_file=None,
+                   organize=False, recode=None, sub_translate=None,
+                   extract_gif_enabled=False, gif_start=0, gif_duration=5,
+                   gif_fps=10, gif_width=480,
+                   extract_frames_enabled=False, frame_interval=1.0):
     """
-    Download a video using yt-dlp or BBDown (for Bilibili).
-
-    Args:
-        url: Video URL
-        output_dir: Output directory (defaults to Desktop)
-        quality: Video quality ('best', '1080', '720', '480', 'worst')
-        audio_only: Download audio only
-        format: Preferred format ('mp4', 'webm', 'mkv', etc.)
-        playlist: Download entire playlist
-        subtitles: Download subtitles
-        thumbnail: Embed thumbnail
-        use_bbdown: Force use of BBDown (None = auto-detect)
-        concurrent_fragments: Number of concurrent fragments for faster download
-        cookies_from_browser: Browser to extract cookies from ('chrome', 'firefox', etc.)
-        live_from_start: Download livestream from the beginning
-        rate_limit: Download speed limit (e.g. '1M', '500K')
+    Download a video from a supported platform.
 
     Returns:
-        Tuple of (success: bool, message: str, output_path: str or None)
+        tuple: (success: bool, message: str, extra: dict | None)
     """
-    # Auto-detect Bilibili URLs
-    if use_bbdown is None:
-        use_bbdown = is_bilibili_url(url)
+    if output_dir is None:
+        output_dir = get_desktop_path()
 
-    # Use BBDown for Bilibili
-    if use_bbdown:
-        print(f"Detected Bilibili URL, using BBDown...")
-        return download_with_bbdown(url, output_dir, quality)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Check if yt-dlp is available
-    if not shutil.which('yt-dlp'):
-        return False, "Error: yt-dlp is not installed or not in PATH", None
+    force_bbdown = (use_bbdown is True)
+    auto_bbdown = (use_bbdown is None and is_bilibili_url(url))
 
-    # Check ffmpeg availability (needed for merging and post-processing)
-    if not shutil.which('ffmpeg'):
-        print("Warning: ffmpeg not found in PATH. Post-processing (merging, format conversion) may fail.")
-        print("Download ffmpeg from: https://www.gyan.dev/ffmpeg/builds/")
-        print("Or: https://github.com/BtbN/FFmpeg-Builds/releases")
+    if force_bbdown or auto_bbdown:
+        cmd = build_bbdown_command(url, output_dir, quality)
+        if cmd:
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True,
+                                        encoding='utf-8', errors='replace')
+                if result.returncode == 0:
+                    return True, "Downloaded successfully with BBDown!", None
+                return False, f"BBDown failed (code {result.returncode}): {result.stderr[:500]}", None
+            except Exception as e:
+                return False, f"BBDown error: {e}", None
+        return False, "BBDown not found. Install from https://github.com/nilaoda/BBDown", None
 
-    # Build command
     cmd = build_ytdlp_command(
-        url=url,
-        output_dir=output_dir,
-        quality=quality,
-        audio_only=audio_only,
-        format=format,
-        playlist=playlist,
-        subtitles=subtitles,
-        thumbnail=thumbnail,
-        concurrent_fragments=concurrent_fragments,
-        cookies_from_browser=cookies_from_browser,
-        live_from_start=live_from_start,
-        rate_limit=rate_limit
+        url, output_dir, quality, audio_only,
+        format, playlist, subtitles, thumbnail,
+        concurrent_fragments, cookies_from_browser,
+        live_from_start, rate_limit,
+        no_sponsor, split_chapters,
+        info_only, list_formats,
+        download_archive, batch_file,
+        organize, recode, sub_translate
     )
 
-    # Execute download
     try:
-        print(f"Downloading from: {url}")
-        print(f"Output directory: {output_dir or get_desktop_path()}")
-        print(f"Quality: {quality}")
-        if audio_only:
-            print("Audio only: Yes")
-        print("-" * 60)
+        print(f"Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True,
+                                encoding='utf-8', errors='replace')
 
-        result = subprocess.run(
-            cmd,
-            capture_output=False,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
-        )
+        if info_only:
+            data = _parse_ytdlp_json_output(result.stdout)
+            if data:
+                return True, f"Retrieved info for {len(data)} video(s)", {"json": data}
+            return True, "Info retrieved (empty)", {"json": []}
 
-        if result.returncode == 0:
-            return True, "Download completed successfully!", None
-        else:
-            return False, f"Download failed with exit code {result.returncode}", None
+        if list_formats:
+            return True, result.stdout, None
+
+        if result.returncode != 0:
+            return False, f"Download failed (code {result.returncode}): {result.stderr[:500]}", None
+
+        downloaded_file = None
+        for line in reversed(result.stdout.splitlines()):
+            if 'Destination:' in line:
+                candidate = line.split('Destination:', 1)[-1].strip()
+                candidate_path = Path(candidate)
+                if candidate_path.exists():
+                    downloaded_file = candidate_path
+                    break
+            if 'Merging formats into' in line:
+                candidate = line.split('into', 1)[-1].strip().strip('"')
+                candidate_path = Path(candidate)
+                if candidate_path.exists():
+                    downloaded_file = candidate_path
+                    break
+
+        extra = {}
+
+        if extract_gif_enabled and downloaded_file:
+            gif_path = extract_gif(str(downloaded_file),
+                                   start=gif_start, duration=gif_duration,
+                                   fps=gif_fps, width=gif_width)
+            if gif_path:
+                extra['gif_path'] = gif_path
+
+        if extract_frames_enabled and downloaded_file:
+            frames = extract_frames(str(downloaded_file), output_dir,
+                                    interval=frame_interval)
+            if frames:
+                extra['frame_paths'] = frames
+
+        if extra:
+            return True, f"Downloaded + post-processing complete", extra
+        return True, "Download completed successfully!", None
 
     except KeyboardInterrupt:
         return False, "Download interrupted by user", None
@@ -310,99 +324,142 @@ def download_video(url, output_dir=None, quality='best', audio_only=False,
 
 
 def main():
-    """Command-line interface."""
     if len(sys.argv) < 2:
         print("Usage: python video_downloader.py <URL> [options]")
-        print("\nOptions:")
-        print("  --quality <best|1080|720|480|worst>  Video quality (default: best)")
-        print("  --audio-only                        Download audio only")
-        print("  --format <mp4|webm|mkv>             Preferred format")
-        print("  --playlist                          Download entire playlist")
-        print("  --subtitles                         Download subtitles")
-        print("  --thumbnail                         Embed thumbnail")
-        print("  --output-dir <path>                 Output directory")
-        print("  --use-bbdown                        Force use BBDown")
-        print("  --concurrent-fragments <N>          Concurrent fragments (e.g. 4)")
-        print("  --cookies-from-browser <browser>    Use browser cookies (chrome/firefox/edge)")
-        print("  --live-from-start                   Download livestream from start")
-        print("  --rate-limit <speed>                Limit download speed (e.g. 1M, 500K)")
+        print()
+        print("=== Download options ===")
+        print("  --quality <best|1080|720|480|worst>")
+        print("  --audio-only")
+        print("  --format <mp4|webm|mkv>")
+        print("  --playlist")
+        print("  --output-dir <path>")
+        print("  --use-bbdown")
+        print()
+        print("=== Metadata & quality-of-life ===")
+        print("  --subtitles                   Download subtitles")
+        print("  --sub-translate <lang>        Translate subtitles (e.g. zh, en)")
+        print("  --thumbnail                   Embed thumbnail")
+        print("  --no-sponsor                  Skip sponsor segments via SponsorBlock")
+        print("  --split-chapters              Split output by video chapters")
+        print("  --organize                    Auto-sort into platform/channel folders")
+        print("  --download-archive <file>     Skip already-downloaded URLs")
+        print("  --batch-file <file>           Download URLs from a text file")
+        print()
+        print("=== Inspection (no download) ===")
+        print("  --info                        Print video metadata as JSON")
+        print("  --list-formats                List available formats")
+        print()
+        print("=== Post-processing ===")
+        print("  --recode <fmt>                Re-encode to mp4/mkv/webm after download")
+        print("  --extract-gif                 Extract a GIF from the video")
+        print("  --gif-start <seconds>         GIF start time (default: 0)")
+        print("  --gif-duration <seconds>      GIF duration (default: 5)")
+        print("  --gif-fps <N>                 GIF frame rate (default: 10)")
+        print("  --gif-width <pixels>          GIF width (default: 480)")
+        print("  --extract-frames              Extract frames at regular intervals")
+        print("  --frame-interval <seconds>    Frame interval (default: 1.0)")
+        print()
+        print("=== Performance ===")
+        print("  --concurrent-fragments <N>")
+        print("  --cookies-from-browser <browser>")
+        print("  --live-from-start")
+        print("  --rate-limit <speed>")
         sys.exit(1)
 
     url = sys.argv[1]
+    args = {
+        'url': url,
+        'quality': 'best',
+        'audio_only': False,
+        'format': None,
+        'playlist': False,
+        'subtitles': False,
+        'thumbnail': False,
+        'output_dir': None,
+        'use_bbdown': None,
+        'concurrent_fragments': None,
+        'cookies_from_browser': None,
+        'live_from_start': False,
+        'rate_limit': None,
+        'no_sponsor': False,
+        'split_chapters': False,
+        'info_only': False,
+        'list_formats': False,
+        'download_archive': None,
+        'batch_file': None,
+        'organize': False,
+        'recode': None,
+        'sub_translate': None,
+        'extract_gif_enabled': False,
+        'gif_start': 0,
+        'gif_duration': 5,
+        'gif_fps': 10,
+        'gif_width': 480,
+        'extract_frames_enabled': False,
+        'frame_interval': 1.0,
+    }
 
-    # Parse options (simple implementation)
-    quality = 'best'
-    audio_only = False
-    format = None
-    playlist = False
-    subtitles = False
-    thumbnail = False
-    output_dir = None
-    use_bbdown = None
-    concurrent_fragments = None
-    cookies_from_browser = None
-    live_from_start = False
-    rate_limit = None
+    param_map = {
+        '--quality': ('quality', str),
+        '--audio-only': ('audio_only', 'flag'),
+        '--format': ('format', str),
+        '--playlist': ('playlist', 'flag'),
+        '--subtitles': ('subtitles', 'flag'),
+        '--thumbnail': ('thumbnail', 'flag'),
+        '--output-dir': ('output_dir', str),
+        '--use-bbdown': ('use_bbdown', 'flag'),
+        '--concurrent-fragments': ('concurrent_fragments', int),
+        '--cookies-from-browser': ('cookies_from_browser', str),
+        '--live-from-start': ('live_from_start', 'flag'),
+        '--rate-limit': ('rate_limit', str),
+        '--no-sponsor': ('no_sponsor', 'flag'),
+        '--split-chapters': ('split_chapters', 'flag'),
+        '--info': ('info_only', 'flag'),
+        '--list-formats': ('list_formats', 'flag'),
+        '--download-archive': ('download_archive', str),
+        '--batch-file': ('batch_file', str),
+        '--organize': ('organize', 'flag'),
+        '--recode': ('recode', str),
+        '--sub-translate': ('sub_translate', str),
+        '--extract-gif': ('extract_gif_enabled', 'flag'),
+        '--gif-start': ('gif_start', float),
+        '--gif-duration': ('gif_duration', float),
+        '--gif-fps': ('gif_fps', int),
+        '--gif-width': ('gif_width', int),
+        '--extract-frames': ('extract_frames_enabled', 'flag'),
+        '--frame-interval': ('frame_interval', float),
+    }
 
     i = 2
     while i < len(sys.argv):
-        if sys.argv[i] == '--quality' and i + 1 < len(sys.argv):
-            quality = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == '--audio-only':
-            audio_only = True
-            i += 1
-        elif sys.argv[i] == '--format' and i + 1 < len(sys.argv):
-            format = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == '--playlist':
-            playlist = True
-            i += 1
-        elif sys.argv[i] == '--subtitles':
-            subtitles = True
-            i += 1
-        elif sys.argv[i] == '--thumbnail':
-            thumbnail = True
-            i += 1
-        elif sys.argv[i] == '--output-dir' and i + 1 < len(sys.argv):
-            output_dir = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == '--use-bbdown':
-            use_bbdown = True
-            i += 1
-        elif sys.argv[i] == '--concurrent-fragments' and i + 1 < len(sys.argv):
-            concurrent_fragments = int(sys.argv[i + 1])
-            i += 2
-        elif sys.argv[i] == '--cookies-from-browser' and i + 1 < len(sys.argv):
-            cookies_from_browser = sys.argv[i + 1]
-            i += 2
-        elif sys.argv[i] == '--live-from-start':
-            live_from_start = True
-            i += 1
-        elif sys.argv[i] == '--rate-limit' and i + 1 < len(sys.argv):
-            rate_limit = sys.argv[i + 1]
-            i += 2
+        flag = sys.argv[i]
+        if flag in param_map:
+            key, typ = param_map[flag]
+            if typ == 'flag':
+                args[key] = True
+                i += 1
+            else:
+                if i + 1 < len(sys.argv):
+                    args[key] = typ(sys.argv[i + 1])
+                    i += 2
+                else:
+                    i += 1
         else:
             i += 1
 
-    success, message, _ = download_video(
-        url=url,
-        output_dir=output_dir,
-        quality=quality,
-        audio_only=audio_only,
-        format=format,
-        playlist=playlist,
-        subtitles=subtitles,
-        thumbnail=thumbnail,
-        use_bbdown=use_bbdown,
-        concurrent_fragments=concurrent_fragments,
-        cookies_from_browser=cookies_from_browser,
-        live_from_start=live_from_start,
-        rate_limit=rate_limit
-    )
+    success, message, extra = download_video(**args)
 
     print("\n" + "=" * 60)
     print(message)
+    if extra:
+        if 'gif_path' in extra:
+            print(f"GIF saved: {extra['gif_path']}")
+        if 'frame_paths' in extra:
+            print(f"Frames extracted: {len(extra['frame_paths'])} files")
+        if 'json' in extra:
+            for item in extra['json'][:5]:
+                print(f"  - {item.get('title', '?')}  [{item.get('duration', '?')}s]  "
+                      f"{item.get('webpage_url', '')}")
     print("=" * 60)
 
     sys.exit(0 if success else 1)
