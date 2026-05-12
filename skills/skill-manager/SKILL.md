@@ -4,7 +4,7 @@ description: Manage installed Agent Skills on this machine. Use when the user as
 license: MIT
 compatibility: Requires Python 3 and internet access for GitHub sync.
 metadata:
-  default_repo: iChiv/skills
+  default_repo: iChiv/llm-skills
 ---
 
 # Skill Manager

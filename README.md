@@ -9,7 +9,7 @@ All skills live under `skills/` and follow the Agent Skills format — each is a
 Clone into `~/.claude/skills/`:
 
 ```bash
-git clone https://github.com/iChiv/skills.git ~/.claude/skills/
+git clone https://github.com/iChiv/llm-skills.git ~/.claude/skills/
 ```
 
 To manage installed skills (list, install, update, remove), use the included skill-manager:

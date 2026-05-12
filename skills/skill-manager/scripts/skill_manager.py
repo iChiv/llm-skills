@@ -26,7 +26,7 @@ import urllib.request
 import urllib.error
 
 
-DEFAULT_UPSTREAM_REPO = "iChiv/skills"
+DEFAULT_UPSTREAM_REPO = "iChiv/llm-skills"
 
 
 def _utc_now_iso() -> str:
@@ -84,7 +84,7 @@ def _bootstrap_self(root: Path, reg: dict) -> None:
         except Exception:
             commit = None
         reg.setdefault("skills", {})["skill-manager"] = {
-            "repo": "Redox-OX/opencode-skill-manager",
+            "repo": "iChiv/llm-skills",
             "path": ".",
             "installed_commit": commit,
             "installed_at": _utc_now_iso(),
