@@ -57,9 +57,13 @@ def _load_registry(root: Path) -> dict:
     _ensure_state_dirs(root)
     p = _registry_path(root)
     if not p.exists():
+        reg = {"skills": {}}
+        _bootstrap_self(root, reg)
         return {"skills": {}}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        reg = json.loads(p.read_text(encoding="utf-8"))
+        _bootstrap_self(root, reg)
+        return reg
     except Exception:
         return {"skills": {}}
 
@@ -71,6 +75,20 @@ def _save_registry(root: Path, reg: dict) -> None:
     tmp.write_text(json.dumps(reg, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(p)
 
+
+def _bootstrap_self(root: Path, reg: dict) -> None:
+    """Auto-register skill-manager itself so it can track its own updates."""
+    if "skill-manager" not in reg.get("skills", {}):
+        try:
+            commit = _local_git_commit(root / "skill-manager")
+        except Exception:
+            commit = None
+        reg.setdefault("skills", {})["skill-manager"] = {
+            "repo": "Redox-OX/opencode-skill-manager",
+            "path": ".",
+            "installed_commit": commit,
+            "installed_at": _utc_now_iso(),
+        }
 
 def _read_skill_frontmatter(skill_md: Path) -> dict:
     """Parse a minimal YAML frontmatter block without a YAML dependency.

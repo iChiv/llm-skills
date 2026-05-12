@@ -13,6 +13,8 @@ This skill manages skills installed under `~/.claude/skills/`.
 
 OpenCode (via oh-my-opencode) uses the Agent Skills format and this same directory layout, so the `~/.claude` path is expected even when you are not using Claude Code.
 
+DeepSeek TUI also discovers skills from `~/.claude/skills/` using the same Agent Skills format. Use `load_skill skill-manager` inside DeepSeek TUI to activate skill management.
+
 It can:
 - List installed skills (name + description + license + files)
 - Track upstream source (repo/path) and show local vs upstream version

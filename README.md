@@ -47,6 +47,7 @@ GitHub API access:
 
 - Works in OpenCode via oh-my-opencode.
 - Uses the same `SKILL.md` format and `~/.claude/skills/` conventions as the upstream Agent Skills ecosystem.
+- Works in DeepSeek TUI: skills are auto-discovered from `~/.claude/skills/`; use `load_skill skill-manager` to activate.
 
 ## Files
 
