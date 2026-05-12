@@ -1,186 +1,145 @@
 ---
 name: video-downloader
-description: Download videos from YouTube, Bilibili, Vimeo, and 1000+ other websites. Use this skill when users ask to: (1) Download videos from URLs, (2) Save YouTube videos, (3) Download Bilibili videos, (4) Extract audio from videos, (5) Download video playlists. Automatically detects Bilibili URLs and uses BBDown for reliable downloads. Automatically saves to user's Desktop. Supports quality selection, format conversion, and batch downloads.
+description: Download videos from YouTube, Bilibili, Vimeo, and 1000+ other sites. Supports SponsorBlock skipping, chapter splitting, GIF/frame extraction, subtitles translation, batch downloads, auto-organize, archive dedup, and format inspection without downloading.
+tool: yt-dlp
+tool_args: --version
+tool_upstream: yt-dlp/yt-dlp
 ---
 
 # Video Downloader
 
-This skill downloads videos from multiple platforms using specialized downloaders:
-- **yt-dlp** (2026.03.17+) for YouTube, Vimeo, and 1000+ other sites
-- **BBDown** for Bilibili (automatically detected for better reliability)
-- **ffmpeg** is required by yt-dlp for video post-processing (merging, format conversion)
+Downloads videos from multiple platforms using **yt-dlp** (2026.03.17+) and **BBDown** for Bilibili. Includes post-processing: GIF extraction, frame capture, and video recoding via ffmpeg.
 
 ## Dependencies
 
-The skill requires these tools to be available in PATH:
-
-| Tool | Required | Purpose | Download |
-|------|----------|---------|----------|
-| yt-dlp | Yes | Core download engine | `pip install yt-dlp` or [yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp/releases) |
-| ffmpeg | Yes | Post-processing (merge video+audio, format conversion) | [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (Windows) or [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) |
-| BBDown | Optional | Bilibili downloads | [BBDown](https://github.com/nilaoda/BBDown) |
-
-### ffmpeg Installation (Windows)
-1. Download `ffmpeg-release-essentials.zip` from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/)
-2. Extract to a folder (e.g., `C:\ffmpeg`)
-3. Add `C:\ffmpeg\bin` to system PATH
+| Tool | Required | Purpose |
+|------|----------|---------|
+| yt-dlp | Yes | Core download engine |
+| ffmpeg | Yes | Post-processing (merge, GIF, frames, recode) |
+| BBDown | Optional (Bilibili only) | Better Bilibili reliability |
 
 ## Quick Start
 
-To download a video, simply provide the URL. The script automatically:
-- Detects Bilibili URLs and uses BBDown
-- Uses yt-dlp for all other sites
-- Saves to the user's Desktop
-- Warns if ffmpeg is not found in PATH
-
-Example usage:
 ```python
 import sys
 sys.path.insert(0, 'C:/Users/happyelements/.claude/skills/video-downloader/scripts')
 from video_downloader import download_video
 
-# Basic download (best quality)
+# Basic download
 download_video('https://www.youtube.com/watch?v=VIDEO_ID')
 
-# Download Bilibili video (auto-detects and uses BBDown)
-download_video('https://www.bilibili.com/video/BV1xx411c7mD')
+# Skip sponsor segments
+download_video('https://www.youtube.com/watch?v=VIDEO_ID', no_sponsor=True)
 
-# Download specific quality
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', quality='720')
+# Split into chapters
+download_video('https://www.youtube.com/watch?v=VIDEO_ID', split_chapters=True)
 
-# Download audio only
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', audio_only=True)
+# Inspect without downloading
+success, msg, extra = download_video('https://www.youtube.com/watch?v=VIDEO_ID', info_only=True)
+print(extra['json'][0]['title'])
 
-# Faster download with concurrent fragments
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', concurrent_fragments=4)
+# GIF extraction (perfect for sports analysis)
+download_video('https://www.youtube.com/watch?v=VIDEO_ID',
+               extract_gif_enabled=True, gif_start=10, gif_duration=3,
+               gif_fps=15, gif_width=640)
 
-# Use browser cookies for age-restricted content
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', cookies_from_browser='chrome')
+# Extract frames for frame-by-frame analysis
+download_video('https://www.youtube.com/watch?v=VIDEO_ID',
+               extract_frames_enabled=True, frame_interval=0.5)
 
-# Download livestream from the beginning
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', live_from_start=True)
-
-# Limit download speed
-download_video('https://www.youtube.com/watch?v=VIDEO_ID', rate_limit='1M')
+# Batch download from a URL list
+download_video('https://www.youtube.com/watch?v=PLAYLIST_ID',
+               playlist=True, download_archive='archive.txt',
+               organize=True, no_sponsor=True)
 ```
 
-## Common Options
+## All Parameters
 
-The `download_video()` function supports these parameters:
+### Download
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | str | required | Video or playlist URL |
+| `output_dir` | str | Desktop | Where to save files |
+| `quality` | str | `best` | `best`, `1080`, `720`, `480`, `worst` |
+| `audio_only` | bool | False | Extract audio only |
+| `format` | str | None | Preferred container: `mp4`, `webm`, `mkv` |
+| `playlist` | bool | False | Download full playlist |
+| `batch_file` | str | None | File with URLs (one per line) |
+| `download_archive` | str | None | File to track downloaded IDs |
 
-- **url** (required): Video URL
-- **output_dir** (optional): Output directory (defaults to Desktop)
-- **quality** (optional): Video quality ('best', '1080', '720', '480', 'worst')
-- **audio_only** (optional): Download audio only (default: False)
-- **format** (optional): Preferred format ('mp4', 'webm', 'mkv', etc.)
-- **playlist** (optional): Download entire playlist (default: False)
-- **subtitles** (optional): Download subtitles (default: False)
-- **thumbnail** (optional): Embed thumbnail (default: False)
-- **use_bbdown** (optional): Force use BBDown (default: auto-detect)
-- **concurrent_fragments** (optional): Number of concurrent fragments for faster downloads (e.g. 4)
-- **cookies_from_browser** (optional): Browser to extract cookies from ('chrome', 'firefox', 'edge', etc.)
-- **live_from_start** (optional): Download livestream from the beginning (default: False)
-- **rate_limit** (optional): Download speed limit (e.g. '1M', '500K')
+### Metadata & Quality of Life
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `subtitles` | bool | False | Download + embed subtitles |
+| `sub_translate` | str | None | Translate subs to language (e.g. `zh`, `en`) |
+| `thumbnail` | bool | False | Embed thumbnail |
+| `no_sponsor` | bool | False | Skip sponsor/self-promo/intro segments via SponsorBlock |
+| `split_chapters` | bool | False | Split output into per-chapter files |
+| `organize` | bool | False | Auto-sort into `platform/channel/` subdirectories |
+
+### Inspection (no download)
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `info_only` | bool | False | Return video metadata as JSON |
+| `list_formats` | bool | False | List all available formats/qualities |
+
+### Post-Processing
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `recode` | str | None | Re-encode: `mp4`, `mkv`, `webm` |
+| `extract_gif_enabled` | bool | False | Generate GIF from downloaded video |
+| `gif_start` | float | 0 | GIF start time (seconds) |
+| `gif_duration` | float | 5 | GIF duration (seconds) |
+| `gif_fps` | int | 10 | GIF frame rate |
+| `gif_width` | int | 480 | GIF width in pixels |
+| `extract_frames_enabled` | bool | False | Extract still frames at intervals |
+| `frame_interval` | float | 1.0 | Time between frames (seconds) |
+
+### Performance
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `concurrent_fragments` | int | None | Parallel download fragments |
+| `cookies_from_browser` | str | None | Browser for auth: `chrome`, `firefox`, `edge` |
+| `live_from_start` | bool | False | Download livestream from beginning |
+| `rate_limit` | str | None | Speed cap: `1M`, `500K` |
 
 ## Platform Support
 
-### Bilibili (BBDown)
-Automatically detected for URLs containing:
-- `bilibili.com/video`
-- `b23.tv`
-- `bilibili.com/bangumi`
+- **Bilibili** — auto-detected; uses BBDown for anti-scraping
+- **YouTube** — shorts, playlists, livestreams, age-restricted
+- **TikTok, Vimeo, Instagram, X/Twitter**, and 1000+ more via yt-dlp
 
-BBDown is used for Bilibili because it handles:
-- Bilibili's anti-scraping mechanisms
-- DASH format streams
-- Geo-restrictions
-- Login requirements (when needed)
+## CLI Usage
 
-### TikTok
-Recent yt-dlp versions include improved TikTok challenge solving. For TikTok downloads, no special configuration needed.
+```bash
+python video_downloader.py <URL> [options]
 
-### Other Platforms (yt-dlp)
-Supports 1000+ sites including:
-- YouTube (all formats, Shorts, playlists, livestreams)
-- Vimeo
-- Twitter/X
-- Instagram
-- TikTok
-- Patreon
-- SoundCloud
-- And many more
+# Download with sponsor skipping
+python video_downloader.py "https://youtube.com/watch?v=..." --no-sponsor
 
-## Quality Selection
+# Split chapters
+python video_downloader.py "https://youtube.com/watch?v=..." --split-chapters
 
-- `quality='best'` - Best available quality (default)
-- `quality='1080'` - 1080p or best available
-- `quality='720'` - 720p or best available
-- `quality='480'` - 480p or best available
-- `quality='worst'` - Worst quality (smallest file)
+# Inspect metadata
+python video_downloader.py "https://youtube.com/watch?v=..." --info
 
-## Advanced Features
+# Batch + organize + archive
+python video_downloader.py "https://youtube.com/playlist?list=..." \
+    --playlist --organize --download-archive archive.txt --no-sponsor
 
-### Browser Cookies
+# GIF from downloaded video
+python video_downloader.py "https://youtube.com/watch?v=..." \
+    --extract-gif --gif-start 30 --gif-duration 5 --gif-fps 15 --gif-width 640
 
-For sites requiring login or age verification, use browser cookies:
+# Extract frames
+python video_downloader.py "https://youtube.com/watch?v=..." \
+    --extract-frames --frame-interval 0.5
 
-```python
-download_video(url, cookies_from_browser='chrome')
-download_video(url, cookies_from_browser='firefox')
-download_video(url, cookies_from_browser='edge')
+# Translate subtitles to Chinese
+python video_downloader.py "https://youtube.com/watch?v=..." \
+    --sub-translate zh --subtitles
 ```
-
-### Concurrent Downloads
-
-Speed up downloads by using concurrent fragments:
-
-```python
-download_video(url, concurrent_fragments=4)  # Use 4 concurrent connections
-```
-
-### Livestream Downloads
-
-Download a live stream from the beginning:
-
-```python
-download_video(livestream_url, live_from_start=True)
-```
-
-### Rate Limiting
-
-Throttle download speed:
-
-```python
-download_video(url, rate_limit='500K')   # 500 KB/s
-download_video(url, rate_limit='1M')     # 1 MB/s
-```
-
-### Advanced yt-dlp Options
-
-For advanced yt-dlp options not covered by the wrapper, directly execute yt-dlp commands using the Bash tool.
-
-See [references/yt-dlp-options.md](references/yt-dlp-options.md) for comprehensive option reference.
 
 ## Error Handling
 
-The script handles common errors:
-- Invalid or unavailable URLs
-- Network issues
-- File system errors
-- Age-restricted or geo-blocked content
-- Bilibili anti-scraping (using BBDown)
-- Missing dependencies (yt-dlp, ffmpeg)
-
-Errors are reported with clear messages to help users understand what went wrong.
-
-## Updating
-
-To update the underlying tools:
-```bash
-# Update yt-dlp
-pip install --upgrade yt-dlp
-
-# Check current versions
-yt-dlp --version
-ffmpeg -version
-```
+Handles: invalid URLs, network issues, missing dependencies, age-restricted content, geo-blocking, Bilibili anti-scraping. Errors include clear messages and suggestions.
