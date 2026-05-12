@@ -143,3 +143,18 @@ python video_downloader.py "https://youtube.com/watch?v=..." \
 ## Error Handling
 
 Handles: invalid URLs, network issues, missing dependencies, age-restricted content, geo-blocking, Bilibili anti-scraping. Errors include clear messages and suggestions.
+  
+## Member-Only & Paid Content  
+  
+Downloading videos behind a login wall (Bilibili paid courses, YouTube member-only, age-restricted) is supported via browser cookies. **No extra tools needed.**
+
+```python
+download_video('https://www.bilibili.com/video/BV...', cookies_from_browser='chrome')
+```
+
+```bash
+python video_downloader.py "https://www.bilibili.com/video/BV..." --cookies-from-browser chrome
+```
+
+Log in to the site in your browser first; yt-dlp reads the active session automatically. Alternatively, export a portable `cookies.txt` with [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc).
+ 
